@@ -1,29 +1,24 @@
-﻿using Microsoft.VisualBasic.FileIO;
-using System.CommandLine;
-using System.Globalization;
-
+﻿using System.CommandLine;
 
 var bundleOption = new Option<FileInfo>("--output", "File path and name for the bundled file") { IsRequired = true };
 bundleOption.AddAlias("-o");
 
-var languageOption = new Option<string>("--languages", "File languages to bundle (e.g., cs,py,js or all)") { IsRequired = true };
+var languageOption = new Option<string>("--languages", "File languages to bundle (e.g., cs, py, js or all)") { IsRequired = true };
 languageOption.AddAlias("-l");
 
+var includeSourcePathOption = new Option<bool>("--include-source-path", "Include the source file path as a comment in the bundled file") { IsRequired = false };
+includeSourcePathOption.AddAlias("-i");
 
-var includeSourcePathOption = new Option<bool>(  "--include-source-path","Include the source file path as a comment in the bundled file"){ IsRequired = false };
-includeSourcePathOption.AddAlias ("-i");
-
-var sortByOption = new Option<string>( "--sort-by",    "Sort files by 'name' (default) or 'type'. (e.g., 'name' or 'type')"){   IsRequired = false,};
+var sortByOption = new Option<string>("--sort-by", "Sort files by 'name' (default) or 'type'. (e.g., 'name' or 'type')") { IsRequired = false };
 sortByOption.AddAlias("-s");
 
-var emptyLineOption = new Option<bool>( "--erase-empty-lines", "Erase the empty line from the file"){ IsRequired = false };
+var emptyLineOption = new Option<bool>("--erase-empty-lines", "Erase the empty line from the file") { IsRequired = false };
 emptyLineOption.AddAlias("-e");
 
-var authorOption = new Option<string>("--author", "Enter your name if you want the file to be in your name. ") { IsRequired = false, };
+var authorOption = new Option<string>("--author", "Enter your name if you want the file to be in your name.") { IsRequired = false };
 authorOption.AddAlias("-a");
 
 var bundleCommand = new Command("bundle", "Bundle code files to a single file");
-
 
 bundleCommand.AddOption(bundleOption);
 bundleCommand.AddOption(languageOption);
@@ -31,10 +26,11 @@ bundleCommand.AddOption(includeSourcePathOption);
 bundleCommand.AddOption(sortByOption);
 bundleCommand.AddOption(emptyLineOption);
 bundleCommand.AddOption(authorOption);
-bundleCommand.SetHandler((output,  languages,  includeSourcePath,  SortBy,emptyLine , author) =>
+bundleCommand.SetHandler((output, languages, includeSourcePath, SortBy, emptyLine, author) =>
 {
     try
     {
+        // Ensure both output and languages are specified
         if (output == null || string.IsNullOrWhiteSpace(languages))
         {
             Console.WriteLine("Output file path and languages must be specified.");
@@ -72,7 +68,9 @@ bundleCommand.SetHandler((output,  languages,  includeSourcePath,  SortBy,emptyL
             Console.WriteLine($"No files found for the specified languages: {string.Join(", ", selectedLanguages)}");
             return;
         }
-         SortBy = string.IsNullOrWhiteSpace(SortBy) ? "name" : SortBy.ToLower();
+
+        // Default sorting by file name if not specified
+        SortBy = string.IsNullOrWhiteSpace(SortBy) ? "name" : SortBy.ToLower();
 
         if (SortBy.ToLower() == "type")
         {
@@ -89,21 +87,21 @@ bundleCommand.SetHandler((output,  languages,  includeSourcePath,  SortBy,emptyL
         using (var outputStream = File.Create(output.FullName))
         using (var writer = new StreamWriter(outputStream))
         {
-            if(author!=null)
+            if (author != null)
             {
                 writer.WriteLine($" {author}");
             }
             foreach (var file in files)
             {
-                if(includeSourcePath)
+                if (includeSourcePath)
                 {
                     writer.WriteLine($"// Source of file: {file}");
                 }
-                if(emptyLine)
+                if (emptyLine)
                 {
                     foreach (var line in File.ReadLines(file))
                     {
-                        //The line is not empty
+                        // Only write non-empty lines
                         if (!string.IsNullOrWhiteSpace(line))
                         {
                             writer.WriteLine(line);
@@ -126,16 +124,18 @@ bundleCommand.SetHandler((output,  languages,  includeSourcePath,  SortBy,emptyL
     }
     catch (Exception ex)
     {
+        // Handle unexpected errors
         Console.WriteLine($"An error occurred: {ex.Message}");
     }
-}, bundleOption, languageOption, includeSourcePathOption, sortByOption,emptyLineOption,authorOption);
+}, bundleOption, languageOption, includeSourcePathOption, sortByOption, emptyLineOption, authorOption);
+
 var createRspCommand = new Command("create-rsp", "Create a response file with the full command");
 
 createRspCommand.SetHandler(async () =>
 {
     try
     {
-        // בקשה מהמשתמש להזין ערכים עבור כל אפשרות
+        // Prompt user for values for each option
         Console.Write("Enter output file path: ");
         string output = Console.ReadLine();
         if (string.IsNullOrWhiteSpace(output))
@@ -153,7 +153,7 @@ createRspCommand.SetHandler(async () =>
         Console.Write("Sort by (name/type): ");
         string sortBy = Console.ReadLine();
         if (string.IsNullOrWhiteSpace(sortBy))
-            sortBy = "name"; // ברירת מחדל אם המשתמש לא בחר
+            sortBy = "name"; // Default if the user doesn't choose
 
         Console.Write("Erase empty lines? (y/n): ");
         string eraseEmptyLinesInput = Console.ReadLine();
@@ -162,7 +162,7 @@ createRspCommand.SetHandler(async () =>
         Console.Write("Enter your name for the author (optional): ");
         string author = Console.ReadLine();
 
-        // בניית הפקודה המלאה
+        // Construct the full command string
         string command = $" --output {output} --languages {languages}";
 
         if (includeSourcePath)
@@ -177,7 +177,7 @@ createRspCommand.SetHandler(async () =>
         if (!string.IsNullOrEmpty(author))
             command += $" --author {author}";
 
-        // יצירת קובץ תגובה
+        // Create the response file
         string responseFileName = "response.rsp";
         File.WriteAllText(responseFileName, command);
 
@@ -185,15 +185,16 @@ createRspCommand.SetHandler(async () =>
     }
     catch (ArgumentException ex)
     {
-        // טיפול בשגיאות כמו שדה חסר
+        // Handle missing required fields
         Console.WriteLine($"Error: {ex.Message}");
     }
     catch (Exception ex)
     {
-        // טיפול בשגיאות כלליות
+        // Handle general errors
         Console.WriteLine($"Unexpected error: {ex.Message}");
     }
 });
+
 var rootCommand = new RootCommand("Root command for File Bundler CLI");
 rootCommand.AddCommand(bundleCommand);
 rootCommand.AddCommand(createRspCommand);
